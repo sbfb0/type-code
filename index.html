@@ -4,7 +4,7 @@
     <title>sbfb Playground</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
-        textarea { width: 100%; height: 200px; font-family: monospace; font-size: 16px; padding: 10px; }
+        textarea { width: 100%; height: 250px; font-family: monospace; font-size: 16px; padding: 10px; }
         button { background-color: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; margin-top: 10px; }
         button:hover { background-color: #45a049; }
         .output-box { background-color: black; color: #00FF00; padding: 15px; margin-top: 20px; font-family: monospace; white-space: pre-wrap; min-height: 150px; }
@@ -16,13 +16,14 @@
     <p>Write your sbfb code below and hit Run:</p>
 
     <textarea id="codeInput">
-start:sbfb
+start:SBFB
 idk(frontend)
 
-insert python (test.py)
-print("hi")
+insert html (index.html)
+<h1>Hello from HTML!</h1>
+<p>This is a paragraph inside sbfb.</p>
 
-<end></textarea>
+<end:sbfb></textarea>
 
     <button onclick="runSBFB()">Run Code</button>
 
@@ -37,46 +38,69 @@ print("hi")
 
             const lines = code.split('\n');
             let isRunning = false;
-            let isPythonMode = false; // Tracks if we are inside a Python block
+            let isPythonMode = false; 
+            let isHtmlMode = false; // NEW: Tracks if we are inside an HTML block
 
             for (let i = 0; i < lines.length; i++) {
+                // We use trim() to ignore extra spaces, but keep the original line for HTML
                 let line = lines[i].trim();
+                let rawLine = lines[i]; 
+                
                 if (line === "") continue;
 
-                if (line === "start:sbfb") {
+                // Made case-insensitive so start:sbfb or start:SBFB both work!
+                if (line.toLowerCase() === "start:sbfb") {
                     isRunning = true;
                     continue;
                 }
                 
-                if (line === "<end>") {
+                // Accepts <end> or <end:sbfb>
+                if (line.toLowerCase() === "<end>" || line.toLowerCase() === "<end:sbfb>") {
                     output.innerText += "--- Program Finished ---\n";
                     isRunning = false;
-                    isPythonMode = false; // Reset when the program ends
+                    isPythonMode = false; 
+                    isHtmlMode = false; 
                     break;
                 }
 
                 if (isRunning) {
-                    // 1. Check if we should switch into Python Mode
-                    if (line.startsWith("insert python (") && line.endsWith(")")) {
+                    // 1. Check for Python Mode
+                    if (line.toLowerCase().startsWith("insert python (") && line.endsWith(")")) {
                         let filename = line.substring(15, line.length - 1);
                         output.innerText += `[System Note: Inserting Python script '${filename}']\n`;
-                        isPythonMode = true; // Flip the switch!
+                        isPythonMode = true;
+                        isHtmlMode = false; // Turn off HTML mode
                         continue; 
                     }
 
-                    // 2. If we are in Python Mode, look for Python commands
+                    // 2. Check for HTML Mode
+                    if (line.toLowerCase().startsWith("insert html (") && line.endsWith(")")) {
+                        let filename = line.substring(13, line.length - 1);
+                        output.innerText += `[System Note: Inserting HTML script '${filename}']\n`;
+                        isHtmlMode = true;
+                        isPythonMode = false; // Turn off Python mode
+                        continue; 
+                    }
+
+                    // 3. Python Mode Logic
                     if (isPythonMode) {
                         if (line.startsWith('print("') && line.endsWith('")')) {
                             let text = line.substring(7, line.length - 2);
                             output.innerText += text + "\n";
-                        } 
-                        else {
+                        } else {
                             output.innerText += `Python Error: sbfb's mini-python doesn't recognize '${line}' yet\n`;
                         }
-                        continue; // Skip the standard sbfb checks below
+                        continue;
                     }
 
-                    // 3. If we are NOT in Python mode, do normal sbfb commands
+                    // 4. HTML Mode Logic
+                    if (isHtmlMode) {
+                        // Just print the HTML exactly as the user typed it!
+                        output.innerText += rawLine + "\n";
+                        continue;
+                    }
+
+                    // 5. Normal sbfb Commands
                     if (line.startsWith("idk(") && line.endsWith(")")) {
                         let env = line.substring(4, line.length - 1);
                         output.innerText += `[System Note: Setting up ${env} environment...]\n`;
