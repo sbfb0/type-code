@@ -7,16 +7,13 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #1e1e1e; color: #fff; }
         h1 { margin-top: 0; font-size: 24px; color: #4CAF50; }
         
-        /* Split Screen Layout */
         .workspace { display: flex; gap: 20px; height: calc(100vh - 100px); }
         .panel { flex: 1; display: flex; flex-direction: column; }
         
-        /* Code Editor Panel */
         textarea { flex: 1; background-color: #2d2d2d; color: #d4d4d4; font-family: 'Courier New', Courier, monospace; font-size: 15px; padding: 15px; border: 1px solid #444; border-radius: 5px; resize: none; outline: none; }
         button { background-color: #4CAF50; color: white; padding: 12px 20px; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; margin-top: 10px; font-weight: bold; }
         button:hover { background-color: #45a049; }
         
-        /* Preview & Terminal Panel */
         .preview-header { background: #333; padding: 5px 15px; border-radius: 5px 5px 0 0; font-size: 14px; font-weight: bold; color: #ccc; }
         .browser-preview { flex: 2; background-color: #ffffff; border: none; border-radius: 0 0 5px 5px; margin-bottom: 20px; width: 100%; }
         
@@ -31,16 +28,21 @@
         <div class="panel">
             <textarea id="codeInput" spellcheck="false">
 start:SBFB
-idk(frontend)
+frontend
 
-type ("Initializing webpage...")
+type ("Building the webpage...")
 
 insert html (index.html)
-<div style="text-align: center; margin-top: 50px;">
-    <h1 style="color: blue;">Welcome to the SBFB Web Preview!</h1>
-    <p>This HTML is actually rendering in real-time.</p>
-    <button style="background: blue; color: white; padding: 10px;">Click Me!</button>
+<div style="text-align: center; margin-top: 50px; font-family: Arial;">
+    <h1 id="myTitle">Hello from HTML!</h1>
+    <button id="myBtn" style="padding: 10px 20px; cursor: pointer;">Change Color</button>
 </div>
+
+insert javascript (script.js)
+document.getElementById("myBtn").onclick = function() {
+    document.getElementById("myTitle").style.color = "red";
+    document.getElementById("myTitle").innerText = "JavaScript is alive!";
+};
 
 <end:sbfb></textarea>
             <button onclick="runSBFB()">Run sbfb Code</button>
@@ -63,13 +65,15 @@ insert html (index.html)
             
             terminal.innerText = "--- Running sbfb Program ---\n";
             
-            // This string will collect all the HTML code the user types
+            // Collect HTML and JS separately
             let htmlContent = ""; 
+            let jsContent = "";
 
             const lines = code.split('\n');
             let isRunning = false;
             let isPythonMode = false; 
             let isHtmlMode = false; 
+            let isJsMode = false; // NEW: Tracks JavaScript mode
 
             for (let i = 0; i < lines.length; i++) {
                 let line = lines[i].trim();
@@ -87,26 +91,52 @@ insert html (index.html)
                     isRunning = false;
                     isPythonMode = false; 
                     isHtmlMode = false; 
+                    isJsMode = false;
                     break;
                 }
 
                 if (isRunning) {
+                    // --- ENVIRONMENT COMMANDS ---
+                    if (line.toLowerCase() === "frontend") {
+                        terminal.innerText += "[System Note: Environment locked to FRONTEND]\n";
+                        continue;
+                    }
+                    if (line.toLowerCase() === "backend") {
+                        terminal.innerText += "[System Note: Environment locked to BACKEND]\n";
+                        continue;
+                    }
+                    if (line.toLowerCase() === "idk") {
+                        terminal.innerText += "[System Note: Environment UNKNOWN (Could be Frontend or Backend)]\n";
+                        continue;
+                    }
+                    // (Kept for backwards compatibility)
+                    if (line.startsWith("idk(") && line.endsWith(")")) {
+                        let env = line.substring(4, line.length - 1);
+                        terminal.innerText += `[System Note: Environment set to ${env}]\n`;
+                        continue;
+                    }
+
+                    // --- MODE SWITCHERS ---
                     if (line.toLowerCase().startsWith("insert python (") && line.endsWith(")")) {
                         let filename = line.substring(15, line.length - 1);
                         terminal.innerText += `[System Note: Inserting Python script '${filename}']\n`;
-                        isPythonMode = true;
-                        isHtmlMode = false; 
+                        isPythonMode = true; isHtmlMode = false; isJsMode = false;
                         continue; 
                     }
-
                     if (line.toLowerCase().startsWith("insert html (") && line.endsWith(")")) {
                         let filename = line.substring(13, line.length - 1);
                         terminal.innerText += `[System Note: Rendering HTML script '${filename}']\n`;
-                        isHtmlMode = true;
-                        isPythonMode = false; 
+                        isHtmlMode = true; isPythonMode = false; isJsMode = false;
+                        continue; 
+                    }
+                    if (line.toLowerCase().startsWith("insert javascript (") && line.endsWith(")")) {
+                        let filename = line.substring(19, line.length - 1);
+                        terminal.innerText += `[System Note: Loading JavaScript '${filename}']\n`;
+                        isJsMode = true; isHtmlMode = false; isPythonMode = false;
                         continue; 
                     }
 
+                    // --- MODE LOGIC ---
                     if (isPythonMode) {
                         if (line.startsWith('print("') && line.endsWith('")')) {
                             let text = line.substring(7, line.length - 2);
@@ -116,19 +146,19 @@ insert html (index.html)
                         }
                         continue;
                     }
-
+                    
                     if (isHtmlMode) {
-                        // Instead of printing to the terminal, we add it to our hidden HTML string!
                         htmlContent += rawLine + "\n";
                         continue;
                     }
 
-                    // Normal sbfb Commands
-                    if (line.startsWith("idk(") && line.endsWith(")")) {
-                        let env = line.substring(4, line.length - 1);
-                        terminal.innerText += `[System Note: Setting up ${env} environment...]\n`;
+                    if (isJsMode) {
+                        jsContent += rawLine + "\n";
+                        continue;
                     }
-                    else if (line.startsWith('type ("') && line.endsWith('")')) {
+
+                    // --- STANDARD COMMANDS ---
+                    if (line.startsWith('type ("') && line.endsWith('")')) {
                         let text = line.substring(7, line.length - 2);
                         terminal.innerText += text + "\n";
                     }
@@ -138,8 +168,9 @@ insert html (index.html)
                 }
             }
 
-            // At the very end, inject the collected HTML into the iframe preview box!
-            preview.srcdoc = htmlContent;
+            // Combine HTML and JS, then inject it into the live preview!
+            let finalWebCode = htmlContent + "\n<script>" + jsContent + "<\/script>";
+            preview.srcdoc = finalWebCode;
         }
     </script>
 
