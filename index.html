@@ -3,33 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SBFB Type Studio | Professional IDE</title>
-    <link rel="manifest" href="manifest.json">
+    <title>SBFB Type Studio | Multi-Runtime IDE</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: #1e1e1e; color: #fff; overflow: hidden; }
         
-        /* Layout */
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #252526; padding: 10px; border-radius: 8px; border: 1px solid #333; }
         .file-controls { display: flex; gap: 8px; margin-bottom: 10px; }
         .workspace { display: flex; gap: 15px; height: calc(100vh - 160px); }
         .panel { flex: 1; display: flex; flex-direction: column; gap: 10px; }
         
-        /* Buttons & Inputs */
         .btn { padding: 8px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; color: white; font-size: 12px; }
         .btn-run { background: #4CAF50; padding: 10px 25px; font-size: 14px; }
         .btn-run:hover { background: #45a049; transform: scale(1.05); }
         .btn-file { background: #3e3e42; border: 1px solid #555; }
-        .btn-file:hover { background: #505050; }
-        .api-input { background: #333; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; width: 200px; }
-
-        /* Editor & Output */
-        textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; padding: 20px; border: 1px solid #333; border-radius: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; resize: none; outline: none; line-height: 1.5; }
-        textarea:focus { border-color: #4CAF50; }
+        
+        textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; padding: 20px; border: 1px solid #333; border-radius: 8px; font-family: 'Consolas', monospace; font-size: 14px; resize: none; outline: none; }
         .terminal { flex: 1; background: #000; color: #00FF00; padding: 15px; font-family: 'Consolas', monospace; overflow-y: auto; border: 1px solid #333; border-radius: 8px; white-space: pre-wrap; font-size: 13px; }
         .preview-box { flex: 1; background: white; border-radius: 8px; border: none; }
         
-        /* Text Highlighting Classes */
         .error-text { color: #ff5555; }
         .sys-text { color: #569cd6; }
     </style>
@@ -37,54 +30,31 @@
 <body>
 
     <div class="top-bar">
-        <div style="font-weight: bold; color: #4CAF50;">⚡ SBFB TYPE-CODE IDE</div>
-        <div style="display: flex; gap: 10px;">
-            <input type="password" id="groqApiKey" class="api-input" placeholder="Groq API Key (Optional)">
-            <button onclick="runSBFB()" class="btn btn-run">▶ RUN PROGRAM</button>
-        </div>
+        <div style="font-weight: bold; color: #4CAF50;">⚡ SBFB MULTI-CODE IDE</div>
+        <button onclick="runSBFB()" class="btn btn-run">▶ RUN PROGRAM</button>
     </div>
 
     <div class="file-controls">
         <button class="btn btn-file" onclick="newFile()">📄 New File</button>
-        <button class="btn btn-file" onclick="document.getElementById('fileOpener').click()">📂 Open .sbfb</button>
-        <button class="btn btn-file" onclick="saveFile()">💾 Save .sbfb</button>
-        <input type="file" id="fileOpener" accept=".sbfb" style="display:none" onchange="loadFile(event)">
-        <span id="fileNameDisplay" style="margin-left:10px; color:#888; font-size:12px; align-self:center;">unsaved_project.sbfb</span>
+        <span id="fileNameDisplay" style="margin-left:10px; color:#888; font-size:12px; align-self:center;">project.sbfb</span>
     </div>
 
     <div class="workspace">
         <div class="panel">
             <textarea id="codeInput" spellcheck="false">start:SBFB
-frontend
+Frontend
+// This is a note and will be ignored
 
-type ("--- Testing SBFB Math & Memory ---")
-let myName = "Creator"
-let baseScore = 10
-let bonus = 5
-let total = baseScore + bonus
+Createcode: python
+Test.py
+print("Hello from Python!")
+print(5 + 5)
 
-type ("Welcome ")
-type (myName)
-type ("Your starting score is: ")
-type (total)
+Createcode: javascript
+Logic.js
+alert("SBFB executing JavaScript!");
 
-type ("")
-type ("--- Testing Upgraded Loops ---")
-
-let loopCount = 3
-let counter = 1
-
-repeat loopCount {
-    type ("Loop iteration: ")
-    type (counter)
-    
-    render ("<h1 style='color:blue; font-family:sans-serif;'>Hello Loop ")
-    render (counter)
-    render ("</h1>")
-    
-    counter = counter + 1
-}
-
+type ("Back to standard SBFB mode")
 <end:SBFB></textarea>
         </div>
 
@@ -95,161 +65,105 @@ repeat loopCount {
     </div>
 
     <script>
-        // --- FILE SYSTEM LOGIC ---
+        let pyodideInstance = null;
+
+        async function getPyodide() {
+            if (!pyodideInstance) {
+                pyodideInstance = await loadPyodide();
+            }
+            return pyodideInstance;
+        }
+
         function newFile() {
-            if(confirm("Create new file? Unsaved changes will be lost.")) {
-                document.getElementById('codeInput').value = "start:SBFB\n\n<end:SBFB>";
-                document.getElementById('fileNameDisplay').innerText = "new_project.sbfb";
-            }
+            document.getElementById('codeInput').value = "start:SBFB\n\n<end:SBFB>";
         }
-
-        function saveFile() {
-            const code = document.getElementById('codeInput').value;
-            const blob = new Blob([code], { type: 'text/plain' });
-            const anchor = document.createElement('a');
-            anchor.download = "program.sbfb";
-            anchor.href = window.URL.createObjectURL(blob);
-            anchor.click();
-            window.URL.revokeObjectURL(anchor.href);
-        }
-
-        function loadFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('codeInput').value = e.target.result;
-                document.getElementById('fileNameDisplay').innerText = file.name;
-                runSBFB();
-            };
-            reader.readAsText(file);
-        }
-
-        // --- CORE ENGINE ---
-        window.onload = function() {
-            const savedKey = localStorage.getItem("sbfb_api_key");
-            if (savedKey) document.getElementById("groqApiKey").value = savedKey;
-
-            // Register PWA Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log("SW tools error:", err));
-            }
-
-            // Handle File Launch (Opening .sbfb from Windows)
-            if ('launchQueue' in window) {
-                launchQueue.setConsumer(async (launchParams) => {
-                    if (launchParams.files && launchParams.files.length) {
-                        const fileHandle = launchParams.files[0];
-                        const file = await fileHandle.getFile();
-                        const content = await file.text();
-                        document.getElementById('codeInput').value = content;
-                        document.getElementById('fileNameDisplay').innerText = file.name;
-                        runSBFB();
-                    }
-                });
-            }
-        };
 
         async function runSBFB() {
             const code = document.getElementById("codeInput").value;
             const terminal = document.getElementById("outputScreen");
             const preview = document.getElementById("webPreview");
-            const apiKey = document.getElementById("groqApiKey").value;
             
-            if (apiKey) localStorage.setItem("sbfb_api_key", apiKey);
-
             terminal.innerHTML = "<span class='sys-text'>--- Initializing SBFB Engine ---</span>\n";
             preview.srcdoc = ""; 
 
-            let memory = {};
             let isRunning = false;
             let htmlContent = "";
             const lines = code.split('\n');
 
-            async function executeBatch(linesArray) {
-                for (let i = 0; i < linesArray.length; i++) {
-                    let line = linesArray[i].trim();
-                    let lowerLine = line.toLowerCase();
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                
+                // Skip comments and empty lines
+                if (line.startsWith("//") || line === "") continue;
 
-                    if (lowerLine === "start:sbfb") { isRunning = true; continue; }
-                    if (lowerLine === "<end:sbfb>" || lowerLine === "<end>") { isRunning = false; break; }
+                let lowerLine = line.toLowerCase();
 
-                    if (isRunning && line !== "") {
+                if (lowerLine === "start:sbfb") { isRunning = true; continue; }
+                if (lowerLine === "<end:sbfb>") { isRunning = false; break; }
+
+                if (isRunning) {
+                    // PYTHON RUNTIME
+                    if (lowerLine.startsWith("createcode: python")) {
+                        terminal.innerHTML += "<span class='sys-text'>[System: Running Python...]</span>\n";
+                        i++; // Skip the filename line (e.g. Test.py)
                         
-                        let isAssignment = lowerLine.startsWith("let ") || (line.includes("=") && !line.includes("=="));
-                        if (isAssignment && !lowerLine.startsWith("type") && !lowerLine.startsWith("repeat") && !lowerLine.startsWith("render")) {
-                            let parts = line.replace(/^let\s+/i, '').split("=");
-                            let varName = parts[0].trim();
-                            let expression = parts[1].trim();
-
-                            if (expression.startsWith('"') && expression.endsWith('"')) {
-                                memory[varName] = expression.slice(1, -1);
-                            } else {
-                                let evalString = expression;
-                                for (let key in memory) {
-                                    let regex = new RegExp(`\\b${key}\\b`, "g");
-                                    evalString = evalString.replace(regex, memory[key]);
-                                }
-                                try {
-                                    memory[varName] = Function('"use strict";return (' + evalString + ')')();
-                                } catch(e) {
-                                    memory[varName] = expression;
-                                }
-                            }
-                            continue;
-                        }
-
-                        if (lowerLine.startsWith("type (") && line.endsWith(")")) {
-                            let content = line.substring(line.indexOf("(") + 1, line.lastIndexOf(")")).trim();
-                            if (content.startsWith('"')) {
-                                terminal.innerHTML += content.replace(/"/g, '') + "\n";
-                            } else {
-                                terminal.innerHTML += (memory[content] !== undefined ? memory[content] : `<span class='error-text'>Undefined: ${content}</span>`) + "\n";
-                            }
-                            continue;
-                        }
-
-                        if (lowerLine.startsWith("render (") && line.endsWith(")")) {
-                            let content = line.substring(line.indexOf("(") + 1, line.lastIndexOf(")")).trim();
-                            if (content.startsWith('"')) {
-                                htmlContent += content.replace(/"/g, '');
-                            } else {
-                                htmlContent += (memory[content] !== undefined ? memory[content] : "");
-                            }
-                            preview.srcdoc = htmlContent;
-                            continue;
-                        }
-
-                        if (lowerLine.startsWith("repeat ") && lowerLine.endsWith("{")) {
-                            let countKey = lowerLine.substring(7, lowerLine.length - 1).trim();
-                            let count = isNaN(countKey) ? memory[countKey] : parseInt(countKey);
-                            
-                            let loopLines = [];
-                            let depth = 1;
+                        let pyCode = "";
+                        i++; // Move to start of code
+                        while (i < lines.length && !lines[i].toLowerCase().includes("createcode:") && !lines[i].toLowerCase().includes("<end:sbfb>")) {
+                            if (!lines[i].trim().startsWith("//")) pyCode += lines[i] + "\n";
                             i++;
-                            while (i < linesArray.length && depth > 0) {
-                                if (linesArray[i].includes("{")) depth++;
-                                if (linesArray[i].includes("}")) depth--;
-                                if (depth > 0) loopLines.push(linesArray[i]);
-                                i++;
-                            }
-                            i--; 
-
-                            for (let l = 0; l < (count || 0); l++) {
-                                await executeBatch(loopLines);
-                            }
-                            continue;
                         }
+                        i--; // Adjust index for main loop
 
-                        if (lowerLine === "frontend") {
-                            terminal.innerHTML += "<span class='sys-text'>[System: Environment FRONTEND]</span>\n";
-                            continue;
+                        try {
+                            const py = await getPyodide();
+                            await py.runPythonAsync(`
+                                import sys, io
+                                sys.stdout = io.StringIO()
+                            `);
+                            await py.runPythonAsync(pyCode);
+                            const stdout = py.runPython("sys.stdout.getvalue()");
+                            terminal.innerHTML += stdout;
+                        } catch (err) {
+                            terminal.innerHTML += `<span class='error-text'>Python Error: ${err}</span>\n`;
                         }
+                        continue;
+                    }
+
+                    // JAVASCRIPT RUNTIME
+                    if (lowerLine.startsWith("createcode: javascript")) {
+                        terminal.innerHTML += "<span class='sys-text'>[System: Running JavaScript...]</span>\n";
+                        i++; // Skip filename
+                        
+                        let jsCode = "";
+                        i++;
+                        while (i < lines.length && !lines[i].toLowerCase().includes("createcode:") && !lines[i].toLowerCase().includes("<end:sbfb>")) {
+                            if (!lines[i].trim().startsWith("//")) jsCode += lines[i] + "\n";
+                            i++;
+                        }
+                        i--;
+
+                        try {
+                            eval(jsCode);
+                        } catch (err) {
+                            terminal.innerHTML += `<span class='error-text'>JS Error: ${err}</span>\n`;
+                        }
+                        continue;
+                    }
+
+                    // STANDARD SBFB COMMANDS
+                    if (lowerLine.startsWith("type (") && line.endsWith(")")) {
+                        let content = line.substring(line.indexOf("(") + 1, line.lastIndexOf(")")).replace(/"/g, '');
+                        terminal.innerHTML += content + "\n";
+                    }
+
+                    if (lowerLine.startsWith("render (") && line.endsWith(")")) {
+                        let content = line.substring(line.indexOf("(") + 1, line.lastIndexOf(")")).replace(/"/g, '');
+                        htmlContent += content;
+                        preview.srcdoc = htmlContent;
                     }
                 }
             }
-
-            await executeBatch(lines);
             terminal.innerHTML += "<span class='sys-text'>--- Program Finished ---</span>\n";
             terminal.scrollTop = terminal.scrollHeight;
         }
